@@ -5,7 +5,7 @@
   <title>Bar El Paseo - Carta Digital</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   
-  <!-- Estilos nativos de LittleLink -->
+  <!-- Estilos de LittleLink -->
   <link rel="stylesheet" href="css/normalize.css">
   <link rel="stylesheet" href="css/skeleton.css">
   <link rel="stylesheet" href="css/brands.css">
@@ -14,11 +14,13 @@
     body {
       background-color: #0f172a;
       color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     .container {
       max-width: 400px;
       margin-top: 30px;
       text-align: center;
+      padding-bottom: 40px;
     }
     .badge-mesa {
       background-color: #2563eb;
@@ -48,9 +50,9 @@
       text-decoration: none;
     }
     .btn-camarero { background-color: #dc2626; }
-    .btn-camarero:hover { background-color: #b91c1c; }
+    .btn-camarero:active { background-color: #b91c1c; }
     .btn-cuenta { background-color: #16a34a; }
-    .btn-cuenta:hover { background-color: #15803d; }
+    .btn-cuenta:active { background-color: #15803d; }
     
     .seccion-carta {
       margin-top: 30px;
@@ -59,14 +61,29 @@
       padding: 15px;
       border-radius: 12px;
     }
+    .categoria-titulo {
+      font-size: 16px;
+      color: #38bdf8;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 4px;
+      margin-top: 15px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
     .plato {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       padding: 10px 0;
       border-bottom: 1px solid #334155;
     }
     .plato:last-child { border-bottom: none; }
-    .precio { color: #38bdf8; font-weight: bold; }
+    .plato-info { flex-grow: 1; padding-right: 10px; }
+    .plato-nombre { font-weight: bold; font-size: 15px; display: block; }
+    .plato-desc { font-size: 12px; color: #94a3b8; display: block; margin-top: 2px; }
+    .precio { color: #38bdf8; font-weight: bold; font-size: 15px; white-space: nowrap; }
+    .cargando { text-align: center; color: #94a3b8; font-size: 14px; padding: 20px 0; }
   </style>
 </head>
 <body>
@@ -76,7 +93,7 @@
     <div id="mesa-badge" class="badge-mesa">CARGANDO MESA...</div>
 
     <h2>Bar El Paseo</h2>
-    <p style="color: #94a3b8; font-size: 14px;">Selecciona una opción o consulta los platos</p>
+    <p style="color: #94a3b8; font-size: 14px;">Servicio interactivo de mesa</p>
 
     <!-- Botones Principales de Notificación -->
     <button onclick="enviarAviso('Llamar Camarero')" class="btn-restaurante btn-camarero">
@@ -87,22 +104,10 @@
       💳 Pedir la Cuenta
     </button>
 
-    <!-- Carta Base del Restaurante -->
+    <!-- Contenedor Dinámico de la Carta -->
     <div class="seccion-carta">
-      <h3 style="font-size: 18px; margin-bottom: 15px; text-align: center;">📜 Nuestra Carta</h3>
-      
-      <div class="plato">
-        <span>Caña de Cerveza</span>
-        <span class="precio">2,50 €</span>
-      </div>
-      <div class="plato">
-        <span>Ración de Patatas Bravas</span>
-        <span class="precio">6,50 €</span>
-      </div>
-      <div class="plato">
-        <span>Bocadillo de Calamares</span>
-        <span class="precio">5,00 €</span>
-      </div>
+      <h3 style="font-size: 18px; margin-bottom: 15px; text-align: center; color: #ffffff;">📜 Nuestra Carta</h3>
+      <div id="contenedor-platos" class="cargando">Cargando la carta en tiempo real...</div>
     </div>
   </div>
 
@@ -112,7 +117,51 @@
     const mesa = urlParams.get('mesa') || 'General';
     document.getElementById('mesa-badge').innerText = `MESA ${mesa}`;
 
-    // 2. Función que activa la notificación a ntfy.sh
+    // 2. Cargar los platos dinámicamente desde el Worker
+    async function cargarCarta() {
+      const contenedor = document.getElementById('contenedor-platos');
+      try {
+        const response = await fetch('https://api-carta.joigseru.workers.dev/api/carta');
+        const platos = await response.json();
+
+        if (!platos || platos.length === 0) {
+          contenedor.innerHTML = '<p class="cargando">No hay productos disponibles actualmente.</p>';
+          return;
+        }
+
+        // Agrupar platos por categoría
+        const categorias = {};
+        platos.forEach(p => {
+          if (p.disponible !== false) {
+            const cat = p.categoria || 'Otros';
+            if (!categorias[cat]) categorias[cat] = [];
+            categorias[cat].push(p);
+          }
+        });
+
+        let html = '';
+        for (const [cat, lista] of Object.entries(categorias)) {
+          html += `<div class="categoria-titulo">${cat}</div>`;
+          lista.forEach(p => {
+            html += `
+              <div class="plato">
+                <div class="plato-info">
+                  <span class="plato-nombre">${p.nombre}</span>
+                  ${p.descripcion ? `<span class="plato-desc">${p.descripcion}</span>` : ''}
+                </div>
+                <span class="precio">${parseFloat(p.precio).toFixed(2)} €</span>
+              </div>
+            `;
+          });
+        }
+
+        contenedor.innerHTML = html;
+      } catch (err) {
+        contenedor.innerHTML = '<p class="cargando" style="color: #ef4444;">Error al cargar la carta. Inténtalo de nuevo.</p>';
+      }
+    }
+
+    // 3. Función que envía la alerta a ntfy.sh
     function enviarAviso(tipo) {
       fetch('https://ntfy.sh/test-restaurante-1234', {
         method: 'POST',
@@ -134,6 +183,9 @@
         alert("❌ Error de red.");
       });
     }
+
+    // Cargar la carta al abrir la página
+    cargarCarta();
   </script>
 </body>
 </html>
