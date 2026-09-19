@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Panel de Administración - Carta Digital</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 22px; text-align: center; color: #38bdf8; margin-bottom: 20px; }
+    .card {
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border: 1px solid #334155;
+    }
+    label { font-size: 13px; color: #94a3b8; display: block; margin-top: 10px; }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 4px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #fff;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+    .btn-guardar { background: #2563eb; color: #fff; }
+    .btn-eliminar { background: #ef4444; color: #fff; padding: 6px 10px; width: auto; font-size: 12px; margin: 0; }
+    .item-admin {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #334155;
+    }
+    .item-admin:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+
+  <h1>🛠️ Panel de Administración</h1>
+
+  <!-- Formulario para añadir platos -->
+  <div class="card">
+    <h2 style="font-size: 16px; margin: 0 0 10px 0;">Añadir Nuevo Producto</h2>
+    
+    <label>Categoría</label>
+    <input type="text" id="categoria" placeholder="Ej: Bebidas, Raciones, Postres">
+
+    <label>Nombre del Producto</label>
+    <input type="text" id="nombre" placeholder="Ej: Ensaladilla Rusa">
+
+    <label>Descripción / Alérgenos</label>
+    <input type="text" id="descripcion" placeholder="Ej: Con atún, huevo y mayonesa casera">
+
+    <label>Precio (€)</label>
+    <input type="number" step="0.10" id="precio" placeholder="7.50">
+
+    <button onclick="agregarPlato()" class="btn-guardar">➕ Añadir a la Carta</button>
+  </div>
+
+  <!-- Lista de productos actuales -->
+  <div class="card">
+    <h2 style="font-size: 16px; margin: 0 0 10px 0;">Platos en la Carta</h2>
+    <div id="lista-platos">Cargando datos...</div>
+    <button onclick="guardarCambiosEnServidor()" class="btn-guardar" style="background:#16a34a; margin-top:20px;">
+      💾 Guardar Cambios Globales
+    </button>
+  </div>
+
+  <script>
+    const API_URL = 'https://api-carta.joigseru.workers.dev/api/carta';
+    let cartaActual = [];
+
+    async function cargarDatos() {
+      try {
+        const res = await fetch(API_URL);
+        cartaActual = await res.json();
+        renderizarLista();
+      } catch (err) {
+        alert("Error cargando la carta desde el servidor.");
+      }
+    }
+
+    function renderizarLista() {
+      const cont = document.getElementById('lista-platos');
+      if (cartaActual.length === 0) {
+        cont.innerHTML = '<p style="color:#94a3b8;">La carta está vacía.</p>';
+        return;
+      }
+
+      let html = '';
+      cartaActual.forEach((item, index) => {
+        html += `
+          <div class="item-admin">
+            <div>
+              <strong>${item.nombre}</strong> (${item.precio} €)<br>
+              <small style="color:#94a3b8;">${item.categoria} - ${item.descripcion || 'Sin desc'}</small>
+            </div>
+            <button onclick="eliminarPlato(${index})" class="btn-eliminar">🗑️ Borrar</button>
+          </div>
+        `;
+      });
+      cont.innerHTML = html;
+    }
+
+    function agregarPlato() {
+      const cat = document.getElementById('categoria').value.trim();
+      const nom = document.getElementById('nombre').value.trim();
+      const desc = document.getElementById('descripcion').value.trim();
+      const pre = document.getElementById('precio').value.trim();
+
+      if (!cat || !nom || !pre) {
+        alert("Por favor rellena al menos Categoría, Nombre y Precio.");
+        return;
+      }
+
+      const nuevo = {
+        id: Date.now(),
+        categoria: cat,
+        nombre: nom,
+        descripcion: desc,
+        precio: parseFloat(pre).toFixed(2),
+        disponible: true
+      };
+
+      cartaActual.push(nuevo);
+      renderizarLista();
+
+      // Limpiar campos
+      document.getElementById('nombre').value = '';
+      document.getElementById('descripcion').value = '';
+      document.getElementById('precio').value = '';
+    }
+
+    function eliminarPlato(index) {
+      if (confirm(`¿Seguro que quieres borrar "${cartaActual[index].nombre}"?`)) {
+        cartaActual.splice(index, 1);
+        renderizarLista();
+      }
+    }
+
+    async function guardarCambiosEnServidor() {
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cartaActual)
+        });
+
+        if (res.ok) {
+          alert("✅ Carta actualizada y publicada con éxito.");
+        } else {
+          alert("❌ Error al guardar en el servidor.");
+        }
+      } catch (err) {
+        alert("❌ Error de conexión al guardar.");
+      }
+    }
+
+    cargarDatos();
+  </script>
+</body>
+</html>
